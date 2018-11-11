@@ -1,8 +1,9 @@
+import Network.HTTP.Types
 import RIO
 import Test.Hspec
 import Test.Hspec.Wai
 import Web.Routes
-import System.IO
+import Network.Wai
 
 import Network.Wai.Web
 
@@ -14,31 +15,41 @@ main = hspec $ with app $ do
       get "/" `shouldRespondWith` "Hello, World"
         { matchHeaders = ["Content-Type" <:> "text/plain; charset=utf-8"] }
 
-  describe "GET /json-route" $ do
+  describe "GET /json-ok" $ do
     it "responds with json" $ do
-      get "/json-route" `shouldRespondWith` "\"Hello, World\""
+      get "/json-ok" `shouldRespondWith` "\"Hello, World\""
         { matchHeaders = ["Content-Type" <:> "application/json"] }
 
-  describe "GET /text-route" $ do
+  describe "GET /text-ok" $ do
     it "responds with text" $ do
-      get "/text-route" `shouldRespondWith` "Hello, World"
+      get "/text-ok" `shouldRespondWith` "Hello, World"
         { matchHeaders = ["Content-Type" <:> "text/plain; charset=utf-8"] }
 
+  describe "GET /text-status" $ do
+    it "responds with text" $ do
+      get "/text-status" `shouldRespondWith` 201
 
-data Sitemap = JsonRoute | TextRoute | HtmlRoute
+  describe "GET /text-headers" $ do
+    it "responds with text" $ do
+      get "/text-headers" `shouldRespondWith` "Hello, World"
+        { matchHeaders = [hAcceptLanguage <:> "en-US"] }
+
+
+data Sitemap = JsonOk | TextOk | TextStatus | TextHeaders
   deriving (Show, Generic)
 
 instance PathInfo Sitemap
 
+app :: IO Application
 app = pure
   $ routeT "" id handler
   $ rootT id (\_ _ -> respond hello)
-  where
-    toMaybe = either (const Nothing) Just
 
 handler :: Sitemap -> ApplicationT IO 
-handler JsonRoute _ = respond (Json hello)
-handler TextRoute _ = respond hello
+handler JsonOk _ = respond (Json hello)
+handler TextOk _ = respond hello
+handler TextStatus _ = respond (hello, created201)
+handler TextHeaders _ = respond (hello, [hAcceptLanguage /: "en-US"] :: [Header])
 
 hello :: Text
 hello = "Hello, World"
