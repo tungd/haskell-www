@@ -1,6 +1,9 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Network.Wai.Web where
 
-import Data.Aeson
+import Data.Aeson (ToJSON(..), fromEncoding)
 import Network.HTTP.Types
 import Network.Wai
 import RIO
@@ -9,7 +12,7 @@ import Text.Blaze.Html (Html, Markup)
 import Text.Blaze.Html.Renderer.Utf8
 import Web.Routes
 
-type ApplicationT m = Request -> (Response -> m ResponseReceived) -> m ResponseReceived
+type ApplicationT m = Request -> m Response 
 type RunT m = m ResponseReceived -> IO ResponseReceived
 
 routeT
@@ -18,7 +21,7 @@ routeT
 routeT root runT app next req resp =
   runT $ case toMaybe . fromPathInfo =<< stripPrefix root url of
     Nothing -> liftIO $ next req resp
-    Just path -> app path req (liftIO . resp)
+    Just path -> liftIO . resp =<< app path req
   where
     url = rawPathInfo req
     toMaybe = either (const Nothing) Just
@@ -26,39 +29,63 @@ routeT root runT app next req resp =
 rootT
   :: (MonadIO m)
   => RunT m -> ([Text] -> ApplicationT m) -> Application
-rootT runT app req resp = runT (app url req (liftIO . resp))
+rootT runT app req resp = runT (liftIO . resp =<< app url req)
   where
     url = decodePathInfo (rawPathInfo req)
 
-okText :: Builder -> Response
-okText = errText ok200
 
-errText :: Status -> Builder -> Response
-errText status = responseBuilder status []
+class ToResponse a where
+  respond :: (MonadIO m) => a -> m Response
 
-okHtml :: Html -> Response
-okHtml = errHtml ok200
+class ResponseBuilder a where
+  buildBody :: a -> Builder
+  buildHeaders :: a -> [Header]
 
-errHtml :: Status -> Html -> Response
-errHtml status = responseBuilder status
-  [ (hContentType, "text/html; charset=utf-8") ] . renderHtmlBuilder
+  default buildHeaders :: a -> [Header]
+  buildHeaders _ = []
 
-okXml :: Markup -> Response
-okXml = errXml ok200
+instance ResponseBuilder a => ToResponse (a, [Header], Status) where
+  respond (builder, headers, status) = pure $ responseBuilder status
+    (buildHeaders builder <> headers)
+    (buildBody builder)
 
-errXml :: Status -> Markup -> Response
-errXml status = responseBuilder status
-  [ (hContentType, "text/xml; charset=utf-8") ] . renderHtmlBuilder
+instance ResponseBuilder a => ToResponse (a, [Header]) where
+  respond (builder, headers) = pure $ responseBuilder ok200
+    (buildHeaders builder <> headers)
+    (buildBody builder)
+  -- respond (builder, headers) = respond (builder, headers, ok200)
 
-okJson :: ToJSON a => a -> Response
-okJson = errJson ok200
+instance ResponseBuilder a => ToResponse (a, Status) where
+  respond (builder, status) = pure $ responseBuilder status
+    (buildHeaders builder) (buildBody builder)
 
-errJson :: ToJSON a => Status -> a -> Response
-errJson status = responseBuilder status
-  [ (hContentType, "application/json; charset=utf-8") ] . fromEncoding . toEncoding
+instance ResponseBuilder a => ToResponse a where
+  respond builder = pure $ responseBuilder ok200
+    (buildHeaders builder)
+    (buildBody builder)
+  
+instance ResponseBuilder Builder where
+  buildBody = id
 
-displayBuilder :: (Display a) => a -> Builder
-displayBuilder = getUtf8Builder . display
+instance ResponseBuilder Text where
+  buildBody = encodeUtf8Builder
+  buildHeaders = const [(hContentType, "text/plain; charset=utf-8")]
+
+instance ResponseBuilder Html where
+  buildBody = renderHtmlBuilder
+  buildHeaders = const [(hContentType, "text/html; charset=utf-8")]
+
+newtype Xml = Xml { markup :: Markup }
+
+instance ResponseBuilder Xml where
+  buildBody = renderHtmlBuilder . markup
+  buildHeaders = const [(hContentType, "text/xml; charset=utf-8")]
+
+newtype Json a = Json { json :: a }
+
+instance ToJSON a => ResponseBuilder (Json a) where
+  buildBody = fromEncoding . toEncoding . json
+  buildHeaders = const [(hContentType, "application/json")]
 
 renderHtml :: Html -> Text
 renderHtml = utf8BuilderToText . Utf8Builder . renderHtmlBuilder

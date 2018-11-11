@@ -33,6 +33,7 @@ default-extensions:
 - NoImplicitPrelude
 - OverloadedStrings
 - ScopedTypeVariables
+- DeriveGeneric
 
 ghc-options:
 - -Wall
@@ -49,4 +50,6 @@ tests:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
+    - hspec
+    - hspec-wai
     - www
