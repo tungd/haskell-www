@@ -9,10 +9,26 @@ import RIO
 import RIO.ByteString (stripPrefix)
 import Text.Blaze.Html (Html, Markup)
 import Text.Blaze.Html.Renderer.Utf8
+import Text.ParserCombinators.Parsec ()
+import Text.ParserCombinators.Parsec.Combinator (notFollowedBy)
+import Text.ParserCombinators.Parsec.Prim  ((<?>))
 import Web.Routes
+
 
 type ApplicationT m = Request -> m Response 
 type RunT m = m ResponseReceived -> IO ResponseReceived
+
+data Root = Root | Fallback Text
+  deriving (Show)
+
+instance PathInfo Root where
+  toPathSegments Root = []
+  toPathSegments (Fallback t) = [t]
+  fromPathSegments = Root <$ eof <|> Fallback <$> anySegment
+
+eof :: URLParser ()
+eof = notFollowedBy anySegment <?> "end of input"
+
 
 routeT
   :: (PathInfo a, MonadIO m)
@@ -83,3 +99,6 @@ renderHtml = utf8BuilderToText . Utf8Builder . renderHtmlBuilder
 
 (/:) :: HeaderName -> ByteString -> Header
 (/:) = (,)
+
+notFoundText :: Application
+notFoundText _ resp = resp =<< respond ("Not found" :: Text)

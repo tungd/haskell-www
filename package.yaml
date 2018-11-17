@@ -28,6 +28,7 @@ dependencies:
 - aeson
 - http-types
 - blaze-html
+- parsec
 
 default-extensions:
 - NoImplicitPrelude
