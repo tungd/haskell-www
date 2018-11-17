@@ -1,6 +1,18 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Network.Wai.Web where
+module Network.Wai.Web
+  ( ApplicationT
+  , RunT
+  , Root(..)
+  , ToResponse(..)
+  , Html
+  , Xml(..)
+  , Json(..)
+  , (/:)
+  , routeT
+  , renderHtml
+  , notFoundText
+  )where
 
 import Data.Aeson (ToJSON(..), fromEncoding)
 import Network.HTTP.Types
@@ -8,7 +20,7 @@ import Network.Wai
 import RIO
 import RIO.ByteString (stripPrefix)
 import Text.Blaze.Html (Html, Markup)
-import Text.Blaze.Html.Renderer.Utf8
+import Text.Blaze.Html.Renderer.Utf8 (renderHtmlBuilder)
 import Text.ParserCombinators.Parsec ()
 import Text.ParserCombinators.Parsec.Combinator (notFollowedBy)
 import Text.ParserCombinators.Parsec.Prim  ((<?>))
@@ -40,13 +52,6 @@ routeT root runT app next req resp =
   where
     url = rawPathInfo req
     toMaybe = either (const Nothing) Just
-
-rootT
-  :: (MonadIO m)
-  => RunT m -> ([Text] -> ApplicationT m) -> Application
-rootT runT app req resp = runT (liftIO . resp =<< app url req)
-  where
-    url = decodePathInfo (rawPathInfo req)
 
 class ToResponse a where
   respond :: (MonadIO m) => a -> m Response

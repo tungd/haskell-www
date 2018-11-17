@@ -52,7 +52,7 @@ app = pure
   $ routeT "" id handler
   $ routeT "/sitemap.xml" id handleSitemap
   $ routeT "" id handleRoot
-  $ rootT id (\_ _ -> respond ("fallback" :: Text))
+  $ notFoundText
 
 handler :: Sitemap -> ApplicationT IO 
 handler JsonOk _ = respond (Json hello)
