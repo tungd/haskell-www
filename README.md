@@ -24,7 +24,7 @@ available and did not find the one that suits my taste.
 
 ## Example
 
-I highly recommended using `www` along with `rio` and `data-has`. As for
+I highly recommend using `www` along with `rio` and `data-has`. As for
 database my recommendation is `selda`. This example include features required in
 a typical webapp:
 
@@ -36,11 +36,14 @@ a typical webapp:
 ```haskell
 module Main where
 
-import RIO
 import Data.Has
+import Database.Selda
+import Database.Selda.Backend
 import Network.Wai.Handler.Warp
 import Network.Wai.Application.Static
 import Network.Wai.Web
+import RIO
+import RIO.Orphans ()
 import Web.Routes
 
 
@@ -48,6 +51,13 @@ data Sitemap = Post Text | Category Text
   deriving (Show, Generic)
 
 instance PathInfo Sitemap
+
+instance {-# OVERLAPPING #-}
+  (Has LogFunc env) => HasLogFunc env where
+  logFuncL = hasLens
+
+instance (Has SeldaConnection env) => MonadSelda (RIO env) where
+  seldaConnection = pure =<< asks getter
 
 
 main :: IO ()
