@@ -12,7 +12,7 @@ module Network.Wai.Web
   , routeT
   , renderHtml
   , notFoundText
-  )where
+  ) where
 
 import Data.Aeson (ToJSON(..), fromEncoding)
 import Network.HTTP.Types
@@ -30,13 +30,16 @@ import Web.Routes
 type ApplicationT m = Request -> m Response 
 type RunT m = m ResponseReceived -> IO ResponseReceived
 
-data Root = Root | Fallback Text
-  deriving (Show)
+data Root = Root deriving (Show)
+data Fallback = Fallback Text deriving (Show)
 
 instance PathInfo Root where
   toPathSegments Root = []
+  fromPathSegments = Root <$ eof
+
+instance PathInfo Fallback where
   toPathSegments (Fallback t) = [t]
-  fromPathSegments = Root <$ eof <|> Fallback <$> anySegment
+  fromPathSegments = Fallback <$> anySegment
 
 eof :: URLParser ()
 eof = notFollowedBy anySegment <?> "end of input"
